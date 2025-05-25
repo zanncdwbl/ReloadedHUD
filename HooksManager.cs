@@ -23,7 +23,7 @@ namespace ReloadedHUD
 
         public static void PostInit()
         {
-            ModifyItemTipsMod();
+            CheckAndModifyMod();
         }
 
         static void Die(Action<PlayerController, Vector2> orig, PlayerController self, Vector2 finalDamageDirection)
@@ -75,42 +75,46 @@ namespace ReloadedHUD
             );
         }
 
-        public static void ModifyItemTipsMod()
+        public static void CheckAndModifyMod()
         {
-            AppDomain currentDomain = AppDomain.CurrentDomain;
-            currentDomain.Load("ReloadedHUD", currentDomain.Evidence);
-            Assembly[] assems = currentDomain.GetAssemblies();
+            var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+            var modAssembly = loadedAssemblies.First(a => a.GetName().Name == "ItemTipsMod");
 
-            List<Assembly> searchResult = assems.ToList().FindAll(a => a.GetName().Name == "ItemTipsMod");
-            
-            if (searchResult.Count == 0) 
+            if (modAssembly == null)
+            {
                 return;
+            }
 
             try
             {
-                Assembly ItemTipsMod = searchResult.First();
+                var modType = modAssembly.GetType("ItemTipsMod.ItemTipsModule");
+                var settingsType = modAssembly.GetType("ItemTipsMod.Settings");
 
-                Type ItemTipsModule = ItemTipsMod.GetType("ItemTipsMod.ItemTipsModule");
-                ETGModule itemTipsModule = ETGMod.AllMods.Find(x => x.GetType().Namespace == "ItemTipsMod" );
+                var modInstance = FindModInstance(modType);
+                if (modInstance == null)
+                {
+                    return;
+                }
 
-                Type Settings = ItemTipsMod.GetType("ItemTipsMod.Settings");
+                var settingsField = modType.GetField("_currentSettings", BindingFlags.NonPublic | BindingFlags.Instance);
+                var settingsObj = settingsField.GetValue(modInstance);
 
-                FieldInfo settingsFieldInfo = ItemTipsModule.GetField("_currentSettings", BindingFlags.NonPublic | BindingFlags.Instance);
-                object settingsObj = settingsFieldInfo.GetValue(itemTipsModule);
+                var leftField = settingsType.GetField("Left", BindingFlags.Public | BindingFlags.Instance);
 
-                FieldInfo leftFieldInfo = Settings.GetField("Left", BindingFlags.Public | BindingFlags.Instance);
-                object leftValue = leftFieldInfo.GetValue(settingsObj);
-
-                MethodInfo getSizeMethodInfo = Settings.GetMethod("GetSize", BindingFlags.Public | BindingFlags.Instance);
+                MethodInfo getSizeMethodInfo = settingsType.GetMethod("GetSize", BindingFlags.Public | BindingFlags.Instance);
                 object sizeValue = getSizeMethodInfo.Invoke(settingsObj, new object[] { 1 });
 
                 var widthFraction = ((Vector2)sizeValue).x / SGUI.SGUIRoot.Main.Size.x;
-                leftFieldInfo.SetValue(settingsObj, 1f - widthFraction);
+                leftField.SetValue(settingsObj, 1f - widthFraction);
             }
             catch (Exception e)
             {
-                MorphUtils.LogError("Failed to interact with the Item Tips Mod, version changed?", e);
+                MorphUtils.LogError($"Error interacting with ItemTipsMod: {e}");
             }
+        }
+        static object FindModInstance(Type modType)
+        {
+            return UnityEngine.Object.FindObjectsOfType<MonoBehaviour>().FirstOrDefault(obj => obj.GetType() == modType);
         }
 
         public static T GetTypedValue<T>(this FieldInfo This, object instance) { return (T)This.GetValue(instance); }
