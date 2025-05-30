@@ -96,16 +96,18 @@ namespace ReloadedHUD
                     return;
                 }
 
-                var settingsField = modType.GetField("_currentSettings", BindingFlags.NonPublic | BindingFlags.Instance);
+                FieldInfo settingsField = modType.GetField("_currentSettings", BindingFlags.NonPublic | BindingFlags.Instance);
                 var settingsObj = settingsField.GetValue(modInstance);
 
-                var leftField = settingsType.GetField("Left", BindingFlags.Public | BindingFlags.Instance);
+                FieldInfo leftField = settingsType.GetField("Left", BindingFlags.Public | BindingFlags.Instance); /* 0.01f default*/
+                FieldInfo topField = settingsType.GetField("Top", BindingFlags.Public | BindingFlags.Instance); /* 0.20f default */
 
                 MethodInfo getSizeMethodInfo = settingsType.GetMethod("GetSize", BindingFlags.Public | BindingFlags.Instance);
                 object sizeValue = getSizeMethodInfo.Invoke(settingsObj, new object[] { 1 });
 
                 var widthFraction = ((Vector2)sizeValue).x / SGUI.SGUIRoot.Main.Size.x;
-                leftField.SetValue(settingsObj, 1f - widthFraction);
+                leftField.SetValue(settingsObj, 0.98f - widthFraction); /* Give the screen some space on the right side */
+                topField.SetValue(settingsObj, 0.30f);
             }
             catch (Exception e)
             {
